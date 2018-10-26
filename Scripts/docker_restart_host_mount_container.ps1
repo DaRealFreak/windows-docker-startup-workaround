@@ -2,7 +2,7 @@ function balloonNotification($title, $message)
 {
     [void] [System.Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms")
     $objNotifyIcon = New-Object System.Windows.Forms.NotifyIcon
-    $objNotifyIcon.Icon = "$PSScriptRoot\restart.ico"
+    $objNotifyIcon.Icon = "$PSScriptRoot\..\Icons\restart.ico"
     $objNotifyIcon.BalloonTipIcon = "Info"
     $objNotifyIcon.BalloonTipText = $message
     $objNotifyIcon.BalloonTipTitle = $title
