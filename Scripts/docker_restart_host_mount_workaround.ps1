@@ -1,4 +1,4 @@
-function Balloon-Notification($title, $message)
+function Show-BalloonNotification($title, $message)
 {
     [void] [System.Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms")
     $objNotifyIcon = New-Object System.Windows.Forms.NotifyIcon
@@ -16,21 +16,22 @@ function Wait-DockerService()
     # docker not available yet can return two possible messages:
     # 1. error during connect: Get http://%2F%2F.%2Fpipe%2Fdocker_engine/v1.38/containers/json: open //./pipe/docker_engine: The system cannot find the file specified. In the default daemon configuration on Windows, the docker client must be run elevated to connect. This error may also indicate that the docker daemon is not running.
     # 2. Error response from daemon: An invalid argument was supplied.
+    # 3. Error response from daemon: i/o timeout
     $response = docker ps
-    While (($response -eq $null) -or ($response.Contains('CONTAINER ID') -ne $false))
+    While (($null -eq $response) -or ($true -ne $response.Contains('CONTAINER ID')))
     {
-        echo "docker is not available yet, sleeping..."
+        Write-Output "docker is not available yet, sleeping..."
         start-sleep 2
         $response = docker ps
     }
-    echo "docker is available now"
+    Write-Output "docker is available now"
 }
 
 function Start-DockerService()
 {
     # start the service and the tray process again
     Net start com.docker.service
-    Start-Process "C:/Program Files/Docker/Docker/Docker for Windows.exe"
+    Start-Process "C:/Program Files/Docker/Docker/Docker Desktop.exe"
     # wait until the service booted up
     Wait-DockerService
 }
@@ -39,7 +40,7 @@ function Restart-DockerService()
 {
     # stop the service and kill the docker tray process
     Net stop com.docker.service
-    Stop-Process -force -name "Docker for Windows"
+    Stop-Process -force -name "Docker Desktop"
     start-sleep 1
     Start-DockerService
 }
@@ -51,8 +52,8 @@ function Restart-Containers($containers)
         $mounts = (docker inspect -f "{{ .Mounts }}" $containerId)
         if ( $mounts.Contains("host_mnt"))
         {
-            $containerName = (docker inspect --format="{{.Name}}" $containerId)
-            Balloon-Notification "Docker Workaround" "Restarting $containerName..."
+            $containerName = (docker inspect --format ="{{.Name}}" $containerId)
+            Show-BalloonNotification "Docker Workaround" "Restarting $containerName..."
             docker restart $containerId
         }
     }
@@ -86,7 +87,7 @@ function Get-AdminPrivilege()
 
 # Change to the current directory of the script, needed for elevated powershell
 # since the default working directory is C:\Windows\system32 after starting
-cd $PSScriptRoot
+Set-Location $PSScriptRoot
 
 # Get administrator privileges to be able to restart the docker service
 Get-AdminPrivilege
@@ -96,9 +97,9 @@ Get-AdminPrivilege
 # if these containers have a mount on the host system they'll exit (exit code 2) but the bound port is still occupied
 # so we restart the whole docker service again before restarting all containers with a mount on the host system
 # and crashed containers(exit code 2)
-Balloon-Notification "Docker Workaround" "Starting the docker service"
+Show-BalloonNotification "Docker Workaround" "Starting the docker service"
 Start-DockerService
-Balloon-Notification "Docker Workaround" "Restarting the docker service to get rid of the port bindings"
+Show-BalloonNotification "Docker Workaround" "Restarting the docker service to get rid of the port bindings"
 Restart-DockerService
 
 $runningContainers = (docker ps -q).Split([Environment]::NewLine)
@@ -109,7 +110,7 @@ if (docker container ls -q -f 'status=exited' -f 'exited=2')
 }
 if (docker container ls -q -f 'status=exited' -f 'exited=128')
 {
-    $exitedContainers += (docker container ls -q -f 'status=exited' -f 'exited=128').Split([Environment]::NewLine) | select -uniq
+    $exitedContainers += (docker container ls -q -f 'status=exited' -f 'exited=128').Split([Environment]::NewLine) | Select-Object -uniq
 }
 
 Restart-Containers $runningContainers
