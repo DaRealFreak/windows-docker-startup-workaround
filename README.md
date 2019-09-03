@@ -1,14 +1,13 @@
+The bug was fixed with the Docker Desktop 19.03 release, so I'm archiving this repository
+---
 # Windows Docker Startup Workaround
+
+
 small collection of scripts to work with docker on windows.
 
 ## Usage
 Just create a link to the [startup.bat](startup.bat) file in `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup`.  
-The startup.bat will start 2 different scripts, [startup_acrylic.bat](Scripts/startup_acrylic.bat), 
-[startup_docker.bat](Scripts/startup_docker.bat).
-
-## startup_acrylic.bat
-startup_acrylic.bat is trying to start the DNS proxy program [acrylic](https://mayakron.altervista.org/wikibase/show.php?id=AcrylicHome). 
-If it isn't installed the script just closes without doing anything.
+The startup.bat will start [startup_docker.bat](Scripts/startup_docker.bat).
 
 ## startup_docker.bat
 The real reason why I wrote these scripts.This script is starting the powershell script [docker_restart_host_mount_workaround.ps1](Scripts/docker_restart_host_mount_workaround.ps1)
