@@ -10,53 +10,26 @@ function Show-BalloonNotification($title, $message)
     $objNotifyIcon.ShowBalloonTip(5000)
 }
 
-
-function Wait-DockerService()
-{
-    # docker not available yet can return two possible messages:
-    # 1. error during connect: Get http://%2F%2F.%2Fpipe%2Fdocker_engine/v1.38/containers/json: open //./pipe/docker_engine: The system cannot find the file specified. In the default daemon configuration on Windows, the docker client must be run elevated to connect. This error may also indicate that the docker daemon is not running.
-    # 2. Error response from daemon: An invalid argument was supplied.
-    # 3. Error response from daemon: i/o timeout
-    $response = docker ps
-    While (($null -eq $response) -or ($true -ne $response.Contains('CONTAINER ID')))
-    {
-        Write-Output "docker is not available yet, sleeping..."
-        start-sleep 2
-        $response = docker ps
-    }
-    Write-Output "docker is available now"
-}
-
 function Start-DockerService()
 {
     # start the service and the tray process again
     Net start com.docker.service
-    Start-Process "C:/Program Files/Docker/Docker/Docker Desktop.exe"
-    # wait until the service booted up
-    Wait-DockerService
+    Start-Process "$env:ProgramFiles/Docker/Docker/Docker Desktop.exe"
 }
 
-function Restart-DockerService()
+function Shutdown-DockerService()
 {
     # stop the service and kill the docker tray process
     Net stop com.docker.service
     Stop-Process -force -name "Docker Desktop"
     start-sleep 1
-    Start-DockerService
 }
 
-function Restart-Containers($containers)
+function Restart-WSL()
 {
-    foreach ($containerId in $containers)
-    {
-        $mounts = (docker inspect -f "{{ .Mounts }}" $containerId)
-        if ( $mounts.Contains("host_mnt"))
-        {
-            $containerName = (docker inspect --format ="{{.Name}}" $containerId)
-            Show-BalloonNotification "Docker Workaround" "Restarting $containerName..."
-            docker restart $containerId
-        }
-    }
+	wsl --shutdown
+	start-sleep 1
+	Start-Job -ScriptBlock {wsl}
 }
 
 function Get-AdminPrivilege()
@@ -92,26 +65,13 @@ Set-Location $PSScriptRoot
 # Get administrator privileges to be able to restart the docker service
 Get-AdminPrivilege
 
-# we first start the docker service
-# it will automatically restart containers which were active when we shut down windows
-# if these containers have a mount on the host system they'll exit (exit code 2) but the bound port is still occupied
-# so we restart the whole docker service again before restarting all containers with a mount on the host system
-# and crashed containers(exit code 2)
-Show-BalloonNotification "Docker Workaround" "Starting the docker service"
+# make sure the docker services are shut down before restarting the WSL service
+# after restarting the WSL service we restart all docker services again
+Show-BalloonNotification "Docker Workaround" "shutting down docker service and tray process"
+Shutdown-DockerService
+Show-BalloonNotification "Docker Workaround" "restarting WSL services"
+Restart-WSL
+# safety sleep since we don't wait for the output of the WSL command which would be waiting for an input on completion
+start-sleep 3
+Show-BalloonNotification "Docker Workaround" "restarting docker services"
 Start-DockerService
-Show-BalloonNotification "Docker Workaround" "Restarting the docker service to get rid of the port bindings"
-Restart-DockerService
-
-$runningContainers = (docker ps -q).Split([Environment]::NewLine)
-$exitedContainers
-if (docker container ls -q -f 'status=exited' -f 'exited=2')
-{
-    $exitedContainers += (docker container ls -q -f 'status=exited' -f 'exited=2').Split([Environment]::NewLine)
-}
-if (docker container ls -q -f 'status=exited' -f 'exited=128')
-{
-    $exitedContainers += (docker container ls -q -f 'status=exited' -f 'exited=128').Split([Environment]::NewLine) | Select-Object -uniq
-}
-
-Restart-Containers $runningContainers
-Restart-Containers $exitedContainers
